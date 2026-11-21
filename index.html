@@ -53,10 +53,20 @@
   const ready = /^https:\/\/script\.google\.com\//.test(APP_URL);
   const fromHome = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const open = document.getElementById('open');
-  if (ready) open.href = APP_URL;
-  if (ready && fromHome) {
+  // Keeps the sign-in (2026-11-21). Phones wipe the app's own saved sign-in when it closes, so this page holds it:
+  // the app sends it here once after the emailed code (#t=...), and this page hands it to the app on every open.
+  const keep = { get(){ try { return localStorage.getItem('pa_token'); } catch (e) { return null; } },
+                 set(v){ try { v ? localStorage.setItem('pa_token', v) : localStorage.removeItem('pa_token'); } catch (e) {} } };
+  const back = /^#(t=|signout)/.test(location.hash);
+  if (/^#t=/.test(location.hash)) keep.set(decodeURIComponent(location.hash.slice(3)));
+  if (location.hash === '#signout') keep.set(null);
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+  const tok = keep.get();
+  const appUrl = APP_URL + '?home=1' + (tok ? '&t=' + encodeURIComponent(tok) : '');
+  if (ready) open.href = appUrl;
+  if (ready && (fromHome || back)) {
     // Tapped from the home screen: go straight into the app.
-    setTimeout(() => location.replace(APP_URL), 900);
+    setTimeout(() => location.replace(appUrl), back ? 300 : 900);
   } else {
     // Opened in a browser tab: offer the app and show how to add the icon.
     document.getElementById('bar').hidden = true;
